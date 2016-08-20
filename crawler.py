@@ -5,10 +5,12 @@ import subprocess
 import os
 import sys
 import ast
-import threading
+import multiprocessing 
+import signal
 
 # 視頻信息地址，UP主空間號待填
-JSON_URL = 'http://space.bilibili.com/ajax/member/getSubmitVideos?mid={}&pagesize=30&tid=0&keyword=&page=1'
+JSON_URL = 'http://space.bilibili.com/ajax/member/getSubmitVideos'\
+'?mid={}&pagesize=30&tid=0&keyword=&page=1'
 # 刷新間隔時間
 REFRESH_TIME = 5
 
@@ -21,18 +23,17 @@ class Crawler(object):
         self.response = None
         self.filename = '.{}.json'.format(self.code) 
         self.current_json = dict()
+        self.header = {'Connection': 'close'}
 
     def start(self):
         # 檢查是否存在視頻列表文件
         if not self.filename in os.listdir():
             self.request_json()
             self.save_json()
-            self.read_json()
-        else:
-            self.read_json()
+        self.read_json()
         print('初始化完畢')
         # 啓動循環
-        threading.Thread(target=self.worker).start()
+        multiprocessing.Process(target=self.worker).start()
 
     def worker(self):
         while True:
@@ -54,7 +55,7 @@ class Crawler(object):
 
     def request_json(self):
         try:
-            self.response = requests.get(self.url)
+            self.response = requests.get(self.url, headers = self.header)
         except Exception as e:
             print(e)
             print("網絡錯誤，看來你的網絡還too young。")
@@ -69,15 +70,28 @@ class Crawler(object):
             self.current_json = ast.literal_eval(json_f.read())
 
     def _list_diff(self, new, old):
-        return [sth for sth in new if not sth in old]
+        flag = False
+        result = list()
+        for a in new:
+            for b in old:
+                if a['title'] == b['title']: flag = True
+            if not flag: result.append(a)
+            flag = False
+        return result
 
     def send_notif(self, data):
         subprocess.call(['notify-send', data['title'], data['description']])
 
+
+def signal_handler(signal, frame):
+    os._exit(225)
+
 def main():
     crawler = Crawler(sys.argv[1])
-    crawler.start()
     print('不想用了按Ctrl+c，識得唔識得啊？？')
+    signal.signal(signal.SIGINT, signal_handler)
+    crawler.start()
+
 
 if __name__ == '__main__':
     main()
