@@ -84,7 +84,10 @@ class Crawler(object):
 
 
 def signal_handler(signal, frame):
-    os._exit(225)
+    try:
+        sys.exit(225)
+    except:
+        os._exit(225)
 
 def main():
     crawler = Crawler(sys.argv[1])
